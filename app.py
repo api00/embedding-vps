@@ -14,12 +14,15 @@ app = Flask(__name__)
 model = None
 
 def load_model():
-    """Load the embedding model"""
+    """Load the Nomic embedding model"""
     global model
     try:
-        logger.info("Loading embedding model...")
-        model = SentenceTransformer('all-MiniLM-L6-v2', cache_folder='/app/models')
-        logger.info("Model loaded successfully!")
+        logger.info("Loading Nomic embedding model...")
+        # Use the Nomic embed text model
+        model = SentenceTransformer('nomic-ai/nomic-embed-text-v1', 
+                                   cache_folder='/app/models',
+                                   trust_remote_code=True)
+        logger.info("Nomic model loaded successfully!")
         return True
     except Exception as e:
         logger.error(f"Error loading model: {e}")
@@ -33,7 +36,7 @@ def health_check():
     """Health check endpoint"""
     if model is None:
         return jsonify({'status': 'error', 'message': 'Model not loaded'}), 500
-    return jsonify({'status': 'healthy', 'model': 'all-MiniLM-L6-v2'}), 200
+    return jsonify({'status': 'healthy', 'model': 'nomic-embed-text-v1'}), 200
 
 @app.route('/embed', methods=['POST'])
 def embed_text():
@@ -53,9 +56,9 @@ def embed_text():
         if not text.strip():
             return jsonify({'error': 'Empty text provided'}), 400
         
-        # Generate embedding
+        # Generate embedding with Nomic model
         start_time = time.time()
-        embedding = model.encode(text, convert_to_numpy=True)
+        embedding = model.encode(text, convert_to_numpy=True, normalize_embeddings=True)
         processing_time = time.time() - start_time
         
         logger.info(f"Generated embedding for text length: {len(text)}, time: {processing_time:.3f}s")
@@ -64,7 +67,7 @@ def embed_text():
             'embedding': embedding.tolist(),
             'dimensions': len(embedding),
             'processing_time': processing_time,
-            'model': 'all-MiniLM-L6-v2'
+            'model': 'nomic-embed-text-v1'
         }), 200
         
     except Exception as e:
@@ -94,9 +97,12 @@ def embed_batch():
         if not valid_texts:
             return jsonify({'error': 'No valid texts provided'}), 400
         
-        # Generate embeddings
+        # Generate embeddings with batch processing
         start_time = time.time()
-        embeddings = model.encode(valid_texts, convert_to_numpy=True)
+        embeddings = model.encode(valid_texts, 
+                                 convert_to_numpy=True, 
+                                 normalize_embeddings=True,
+                                 batch_size=32)
         processing_time = time.time() - start_time
         
         logger.info(f"Generated {len(embeddings)} embeddings, time: {processing_time:.3f}s")
@@ -106,7 +112,7 @@ def embed_batch():
             'count': len(embeddings),
             'dimensions': len(embeddings[0]) if len(embeddings) > 0 else 0,
             'processing_time': processing_time,
-            'model': 'all-MiniLM-L6-v2'
+            'model': 'nomic-embed-text-v1'
         }), 200
         
     except Exception as e:
@@ -117,8 +123,9 @@ def embed_batch():
 def root():
     """Root endpoint with API information"""
     return jsonify({
-        'service': 'Embedding API',
-        'model': 'all-MiniLM-L6-v2',
+        'service': 'Nomic Embedding API',
+        'model': 'nomic-embed-text-v1',
+        'dimensions': 768,
         'endpoints': {
             'health': 'GET /health',
             'single_embedding': 'POST /embed',
